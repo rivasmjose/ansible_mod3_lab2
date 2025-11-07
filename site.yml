@@ -1,0 +1,56 @@
+---
+- name: Configurar servidor web
+  hosts: web
+  become: true
+  tasks:
+    - name: Instalar Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Asegurar que Nginx está en ejecución
+      service:
+        name: nginx
+        state: started
+        enabled: true
+
+- name: Configurar base de datos (MySQL)
+  hosts: db
+  become: true
+  tasks:
+    - name: Instalar MySQL y dependencias
+      apt:
+        name:
+          - mysql-server
+          - python3-pymysql
+        state: present
+        update_cache: true
+
+    - name: Asegurar que MySQL está en ejecución
+      service:
+        name: mysql
+        state: started
+        enabled: true
+
+    # Omit the "Configurar contraseña de root" task
+    # because it's already set by Docker
+
+    - name: Crear base de datos de la aplicación
+      community.mysql.mysql_db:
+        name: "appdb"
+        state: present
+        login_user: root
+        login_password: "root"
+        login_host: localhost
+
+    - name: Crear usuario de aplicación y otorgar privilegios
+      community.mysql.mysql_user:
+        name: "appuser"
+        password: "root"
+        priv: "appdb.*:ALL"
+        host: "%"
+        state: present
+        login_user: root
+        login_password: "root"
+        login_host: localhost
