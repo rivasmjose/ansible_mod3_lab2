@@ -15,11 +15,11 @@
         state: started
         enabled: true
 
-- name: Configurar base de datos (MySQL)
+- name: Configure MySQL database
   hosts: db
   become: true
   tasks:
-    - name: Instalar MySQL y dependencias
+    - name: Install MySQL server and Python client
       apt:
         name:
           - mysql-server
@@ -27,30 +27,56 @@
         state: present
         update_cache: true
 
-    - name: Asegurar que MySQL está en ejecución
-      service:
-        name: mysql
+    - name: Configure MySQL to listen on all interfaces
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+        backup: yes
+
+    - name: Start MySQL manually
+      shell: |
+        nohup mysqld_safe --skip-networking=0 >/dev/null 2>&1 &
+      args:
+        executable: /bin/bash
+
+    - name: Wait for MySQL TCP port 3306
+      wait_for:
+        host: 127.0.0.1
+        port: 3306
+        delay: 5
+        timeout: 60
         state: started
-        enabled: true
 
-    # Omit the "Configurar contraseña de root" task
-    # because it's already set by Docker
-
-    - name: Crear base de datos de la aplicación
-      community.mysql.mysql_db:
-        name: "appdb"
-        state: present
-        login_user: root
-        login_password: "root"
-        login_host: localhost
-
-    - name: Crear usuario de aplicación y otorgar privilegios
+    - name: Create admin user for Ansible
       community.mysql.mysql_user:
-        name: "appuser"
-        password: "root"
+        name: ansible
+        password: ansible
+        host: "%"
+        priv: "*.*:ALL,GRANT"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        column_case_sensitive: false
+
+    - name: Create application database
+      community.mysql.mysql_db:
+        name: appdb
+        state: present
+        login_user: ansible
+        login_password: ansible
+        login_host: 127.0.0.1
+        login_port: 3306
+
+    - name: Create application user and grant privileges
+      community.mysql.mysql_user:
+        name: appuser
+        password: root
         priv: "appdb.*:ALL"
         host: "%"
         state: present
-        login_user: root
-        login_password: "root"
-        login_host: localhost
+        login_user: ansible
+        login_password: ansible
+        login_host: 127.0.0.1
+        login_port: 3306
+        column_case_sensitive: false
+        plugin: mysql_native_password

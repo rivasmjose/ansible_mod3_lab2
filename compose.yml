@@ -1,15 +1,40 @@
 services:
-    web01:
-        image: ubuntu:24.04
-        container_name: web01
-        command: sleep infinity
-        ports:
-          - "8080:80"
-          - "2222:22"
+  web01:
+    image: ubuntu:24.04
+    container_name: web01
+    ports:
+      - "2222:22" # SSH
+      - "8080:80" # NGINX
+    command: bash -c "
+      apt-get update && \
+      apt-get install -y openssh-server && \
+      mkdir -p /var/run/sshd && \
+      echo 'root:root' | chpasswd && \
+      sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+      sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+      /usr/sbin/sshd -D"
 
-    db01:
-        image: ubuntu:24.04
-        container_name: db01
-        command: sleep infinity
-        ports:
-          - "2223:22"
+  db01:
+    image: ubuntu:24.04
+    container_name: db01
+    ports:
+      - "2223:22" # SSH
+      - "3306:3306" # MySQL
+    command: bash -c "
+      apt-get update && \
+      apt-get install -y openssh-server && \
+      mkdir -p /var/run/sshd && \
+      echo 'root:root' | chpasswd && \
+      sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+      sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+      /usr/sbin/sshd -D"
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db01
+      PMA_USER: appuser
+      PMA_PASSWORD: root
